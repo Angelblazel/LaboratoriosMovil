@@ -47,4 +47,10 @@ class GpsViewModel(private val gpsRepository: GpsRepository) : ViewModel() {
     }
         .flowOn(Dispatchers.Default)   // Envía el cálculo pesado fuera del hilo de la UI
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    class Factory(private val gpsRepository: GpsRepository) : androidx.lifecycle.ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T =
+            GpsViewModel(gpsRepository) as T
+    }
 }
