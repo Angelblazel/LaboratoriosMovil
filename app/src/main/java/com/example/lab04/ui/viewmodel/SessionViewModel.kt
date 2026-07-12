@@ -28,6 +28,12 @@ class SessionViewModel(
         initialValue = null
     )
 
+    val userId = sessionManager.userId.stateIn(
+        scope        = viewModelScope,
+        started      = SharingStarted.Eagerly,
+        initialValue = null
+    )
+
     val isDarkMode = sessionManager.isDarkMode.stateIn(
         scope        = viewModelScope,
         started      = SharingStarted.Eagerly,
@@ -47,7 +53,21 @@ class SessionViewModel(
                 )
                 if (response.isSuccessful && response.body() != null) {
                     val body = response.body()!!
-                    sessionManager.login(email, body.accessToken, body.refreshToken)
+                    
+                    var finalUserId: String? = null
+                    try {
+                        val meResponse = RetrofitClient.apiService.me(
+                            NetworkConstants.PROJECT_SLUG,
+                            "Bearer ${body.accessToken}"
+                        )
+                        if (meResponse.isSuccessful) {
+                            finalUserId = meResponse.body()?.user?.userId
+                        }
+                    } catch (e: Exception) {
+                        // Fallback: continue login even if me endpoint fails
+                    }
+                    
+                    sessionManager.login(email, body.accessToken, body.refreshToken, finalUserId)
                     onResult(true)
                 } else {
                     onResult(false)
@@ -84,7 +104,21 @@ class SessionViewModel(
                 )
                 if (response.isSuccessful && response.body() != null) {
                     val body = response.body()!!
-                    sessionManager.login("Google User", body.accessToken, body.refreshToken)
+                    
+                    var finalUserId: String? = null
+                    try {
+                        val meResponse = RetrofitClient.apiService.me(
+                            NetworkConstants.PROJECT_SLUG,
+                            "Bearer ${body.accessToken}"
+                        )
+                        if (meResponse.isSuccessful) {
+                            finalUserId = meResponse.body()?.user?.userId
+                        }
+                    } catch (e: Exception) {
+                        // Fallback
+                    }
+                    
+                    sessionManager.login("Google User", body.accessToken, body.refreshToken, finalUserId)
                     onResult(true)
                 } else {
                     onResult(false)

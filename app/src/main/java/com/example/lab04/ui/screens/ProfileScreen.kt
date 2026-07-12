@@ -38,6 +38,11 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.example.lab04.data.remote.RetrofitClient
+import com.example.lab04.data.remote.NetworkConstants
+import com.example.lab04.data.remote.model.GeoEventResponse
+import kotlinx.coroutines.flow.first
+import java.time.Instant
 
 enum class RecordsSource { LOCAL, REMOTE, ALL }
 
@@ -135,7 +140,34 @@ private fun RecordsExplorerScreen(title: String, allowedSource: RecordsSource, o
     var selectedTab  by remember { mutableIntStateOf(0) }
     val tabs         = listOf("Todos", "GNSS", "Fotos", "Videos", "Audios")
     var sourceFilter by remember { mutableStateOf(if (allowedSource == RecordsSource.ALL) RecordsSource.ALL else RecordsSource.LOCAL) }
+    var remoteRecords by remember { mutableStateOf<List<GeoEventResponse>>(emptyList()) }
+    var isLoadingRemote by remember { mutableStateOf(false) }
     var detailItem   by remember { mutableStateOf<ActivityItem?>(null) }
+
+    LaunchedEffect(sourceFilter) {
+        if (sourceFilter != RecordsSource.LOCAL) {
+            isLoadingRemote = true
+            try {
+                val userId = app.sessionManager.userId.first()
+                val token = app.sessionManager.accessToken.first()
+                val authHeader = if (token != null) "Bearer $token" else null
+
+                val response = RetrofitClient.apiService.listGeoEventsORM(
+                    NetworkConstants.PROJECT_SLUG,
+                    authHeader,
+                    userId = userId,
+                    limit = 20
+                )
+                if (response.isSuccessful) {
+                    remoteRecords = response.body() ?: emptyList()
+                }
+            } catch (e: Exception) {
+                // Silent catch
+            } finally {
+                isLoadingRemote = false
+            }
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -175,7 +207,7 @@ private fun RecordsExplorerScreen(title: String, allowedSource: RecordsSource, o
             }
         }
 
-        val filteredItems = remember(selectedTab, sourceFilter, googlePoints, sensorsPoints, allMedia, allAudios) {
+        val filteredItems = remember(selectedTab, sourceFilter, googlePoints, sensorsPoints, allMedia, allAudios, remoteRecords) {
             val localItems = mutableListOf<ActivityItem>().apply {
                 addAll(googlePoints.map  { ActivityItem.GpsGoogle(it,  isRemote = false) })
                 addAll(sensorsPoints.map { ActivityItem.GpsSensors(it, isRemote = false) })
@@ -183,16 +215,28 @@ private fun RecordsExplorerScreen(title: String, allowedSource: RecordsSource, o
                 addAll(allAudios.map     { ActivityItem.Audio(it,      isRemote = false) })
             }
 
-            // Datos remotos simulados — placeholder hasta integrar API de consulta
-            val remoteItems = if (sourceFilter != RecordsSource.LOCAL) listOf(
-                ActivityItem.GpsGoogle(GpsGoogleEntity(id = 999, latitude = -12.0463, longitude = -77.0427, accuracy = 5f, timestamp = System.currentTimeMillis() - 86400000), isRemote = true),
-                ActivityItem.Media(MediaEntity(id = 888, filePath = "", type = "PHOTO", sizeBytes = 1024, timestamp = System.currentTimeMillis() - 43200000), isRemote = true)
-            ) else emptyList()
+            val mappedRemote = remoteRecords.map { res ->
+                val ts = try {
+                    Instant.parse(res.recordedAt).toEpochMilli()
+                } catch (e: Exception) {
+                    System.currentTimeMillis()
+                }
+                ActivityItem.GpsGoogle(
+                    GpsGoogleEntity(
+                        id = res.id.toLong(),
+                        latitude = res.latitude,
+                        longitude = res.longitude,
+                        accuracy = res.accuracy?.toFloat(),
+                        timestamp = ts
+                    ),
+                    isRemote = true
+                )
+            }
 
             val combined = when (sourceFilter) {
                 RecordsSource.LOCAL  -> localItems
-                RecordsSource.REMOTE -> remoteItems
-                RecordsSource.ALL    -> localItems + remoteItems
+                RecordsSource.REMOTE -> mappedRemote
+                RecordsSource.ALL    -> localItems + mappedRemote
             }
 
             val filtered = when (selectedTab) {
@@ -257,6 +301,7 @@ private fun MenuOption(icon: ImageVector, title: String, subtitle: String, onCli
 @Composable
 private fun MyProfileScreen(username: String?, sessionVm: SessionViewModel, onBack: () -> Unit) {
     val isDarkModePref by sessionVm.isDarkMode.collectAsStateWithLifecycle()
+    val userId         by sessionVm.userId.collectAsStateWithLifecycle()
     val isDark         = isDarkModePref ?: isSystemInDarkTheme()
     val context        = LocalContext.current
     val androidId      = android.provider.Settings.Secure.getString(
@@ -268,6 +313,7 @@ private fun MyProfileScreen(username: String?, sessionVm: SessionViewModel, onBa
         Spacer(modifier = Modifier.height(24.dp))
 
         ProfileMetadataItem("Username",         username ?: "N/A")
+        ProfileMetadataItem("User ID (UUID)",   userId ?: "Cargando...")
         ProfileMetadataItem("Rol",              "Administrador / Operador")
         ProfileMetadataItem("Directorio Local", context.filesDir.absolutePath)
 
