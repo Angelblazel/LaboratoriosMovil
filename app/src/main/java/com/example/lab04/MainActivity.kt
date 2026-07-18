@@ -1,15 +1,21 @@
 package com.example.lab04
 
+import android.Manifest
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.lab04.ui.Navigation
 import com.example.lab04.ui.theme.AppTheme
 import com.example.lab04.ui.viewmodel.SessionViewModel
+import com.google.firebase.messaging.FirebaseMessaging
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -22,6 +28,22 @@ class MainActivity : ComponentActivity() {
 
             val isDarkModePref by sessionVm.isDarkMode.collectAsState()
             val usarModoOscuro = isDarkModePref ?: isSystemInDarkTheme()
+
+            // Launcher para solicitar el permiso de notificaciones de forma moderna en Compose
+            val permissionLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.RequestPermission()
+            ) { isGranted ->
+                // Aquí podrías manejar el resultado si fuera necesario
+            }
+
+            // Solicitamos el permiso al iniciar la app (solo en Android 13+) y nos suscribimos al topic global
+            LaunchedEffect(Unit) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+                // Nos suscribimos al tema global para recibir notificaciones masivas
+                FirebaseMessaging.getInstance().subscribeToTopic("all_users")
+            }
 
             AppTheme(darkTheme = usarModoOscuro, dynamicColor = false) {
                 Navigation()

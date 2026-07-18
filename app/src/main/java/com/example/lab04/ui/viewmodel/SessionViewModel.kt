@@ -7,10 +7,12 @@ import com.example.lab04.data.session.SessionManager
 import com.example.lab04.data.remote.NetworkConstants
 import com.example.lab04.data.remote.RetrofitClient
 import com.example.lab04.data.remote.model.*
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 class SessionViewModel(
     private val sessionManager: SessionManager
@@ -38,6 +40,12 @@ class SessionViewModel(
         scope        = viewModelScope,
         started      = SharingStarted.Eagerly,
         initialValue = null
+    )
+
+    val notificationsEnabled = sessionManager.notificationsEnabled.stateIn(
+        scope        = viewModelScope,
+        started      = SharingStarted.Eagerly,
+        initialValue = true
     )
 
     fun login(email: String, password: String, onResult: (Boolean) -> Unit) {
@@ -68,6 +76,7 @@ class SessionViewModel(
                     }
                     
                     sessionManager.login(email, body.accessToken, body.refreshToken, finalUserId)
+                    fetchAndSyncToken() // Sincronizar token FCM después del login
                     onResult(true)
                 } else {
                     onResult(false)
@@ -119,6 +128,7 @@ class SessionViewModel(
                     }
                     
                     sessionManager.login("Google User", body.accessToken, body.refreshToken, finalUserId)
+                    fetchAndSyncToken() // Sincronizar token FCM después del login
                     onResult(true)
                 } else {
                     onResult(false)
@@ -155,8 +165,55 @@ class SessionViewModel(
         }
     }
 
+    private fun fetchAndSyncToken() {
+        viewModelScope.launch {
+            try {
+                val token = FirebaseMessaging.getInstance().token.await()
+                syncFcmToken(token)
+            } catch (e: Exception) {
+                // Error al obtener token de Firebase
+            }
+        }
+    }
+
+    fun syncFcmToken(fcmToken: String) {
+        viewModelScope.launch {
+            try {
+                val token = sessionManager.accessToken.firstOrNull()
+                val uId = sessionManager.userId.firstOrNull()
+                val uName = sessionManager.currentUsername.firstOrNull()
+
+                if (token != null) {
+                    RetrofitClient.apiService.updateFcmToken(
+                        projectSlug = NetworkConstants.PROJECT_SLUG,
+                        token = "Bearer $token",
+                        request = DeviceTokenRequest(
+                            userId = uId,
+                            userName = uName,
+                            fcmToken = fcmToken,
+                            deviceId = sessionManager.getDeviceId()
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                // Manejar error de red
+            }
+        }
+    }
+
     fun setDarkMode(enabled: Boolean) {
         viewModelScope.launch { sessionManager.setDarkMode(enabled) }
+    }
+
+    fun setNotificationsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            sessionManager.setNotificationsEnabled(enabled)
+            if (enabled) {
+                FirebaseMessaging.getInstance().subscribeToTopic("all_users")
+            } else {
+                FirebaseMessaging.getInstance().unsubscribeFromTopic("all_users")
+            }
+        }
     }
 
     fun logout() {

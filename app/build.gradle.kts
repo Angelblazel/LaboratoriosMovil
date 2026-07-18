@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     kotlin("plugin.serialization") version "2.2.10"
+    id("com.google.gms.google-services")
 }
 
 ksp {
@@ -96,6 +97,9 @@ dependencies {
 
     // ── WorkManager (notificaciones diferidas, ejecución en background) ──
     implementation("androidx.work:work-runtime-ktx:2.9.0")
+    implementation(platform("com.google.firebase:firebase-bom:34.15.0"))
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-messaging")
 
     // ── Network ──
     implementation(libs.retrofit.core)

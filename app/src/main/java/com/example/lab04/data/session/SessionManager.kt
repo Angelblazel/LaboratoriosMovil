@@ -25,6 +25,7 @@ class SessionManager(private val context: Context) {
         val KEY_ACCESS_TOKEN   = stringPreferencesKey("access_token")
         val KEY_REFRESH_TOKEN  = stringPreferencesKey("refresh_token")
         val KEY_DARK_MODE      = booleanPreferencesKey("dark_mode")
+        val KEY_NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
     }
 
     val isLoggedIn: Flow<Boolean> = context.sessionDataStore.data
@@ -44,6 +45,9 @@ class SessionManager(private val context: Context) {
 
     val isDarkMode: Flow<Boolean?> = context.sessionDataStore.data
         .map { prefs -> prefs[KEY_DARK_MODE] }
+
+    val notificationsEnabled: Flow<Boolean> = context.sessionDataStore.data
+        .map { prefs -> prefs[KEY_NOTIFICATIONS_ENABLED] ?: true }
 
     @SuppressLint("HardwareIds")
     fun getDeviceId(): String {
@@ -76,11 +80,19 @@ class SessionManager(private val context: Context) {
         context.sessionDataStore.edit { prefs -> prefs[KEY_DARK_MODE] = enabled }
     }
 
+    suspend fun setNotificationsEnabled(enabled: Boolean) {
+        context.sessionDataStore.edit { prefs ->
+            prefs[KEY_NOTIFICATIONS_ENABLED] = enabled
+        }
+    }
+
     suspend fun logout() {
         context.sessionDataStore.edit { prefs ->
             val currentTheme = prefs[KEY_DARK_MODE]
+            val currentNotifEnabled = prefs[KEY_NOTIFICATIONS_ENABLED]
             prefs.clear()
             if (currentTheme != null) prefs[KEY_DARK_MODE] = currentTheme
+            if (currentNotifEnabled != null) prefs[KEY_NOTIFICATIONS_ENABLED] = currentNotifEnabled
         }
     }
 }

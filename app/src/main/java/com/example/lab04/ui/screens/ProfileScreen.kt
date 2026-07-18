@@ -338,6 +338,25 @@ private fun MyProfileScreen(username: String?, sessionVm: SessionViewModel, onBa
             Switch(checked = isDark, onCheckedChange = { sessionVm.setDarkMode(it) })
         }
         HorizontalDivider()
+
+        val notificationsEnabled by sessionVm.notificationsEnabled.collectAsStateWithLifecycle()
+        Row(
+            modifier              = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Notifications, null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text("Notificaciones Globales", style = MaterialTheme.typography.titleMedium)
+                    Text("Recibir avisos de all_users", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Switch(checked = notificationsEnabled, onCheckedChange = { sessionVm.setNotificationsEnabled(it) })
+        }
+
+        HorizontalDivider()
         Spacer(modifier = Modifier.height(16.dp))
 
         ProfileMetadataItem("Dispositivo",      "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")

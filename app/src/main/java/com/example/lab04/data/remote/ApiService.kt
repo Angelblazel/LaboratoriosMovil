@@ -51,4 +51,11 @@ interface ApiService {
         @Path("projectSlug") projectSlug: String,
         @Body request: RefreshTokenRequest
     ): Response<TokenResponse>
+
+    @POST("{projectSlug}/device-tokens/")
+    suspend fun updateFcmToken(
+        @Path("projectSlug") projectSlug: String,
+        @Header("Authorization") token: String?,
+        @Body request: DeviceTokenRequest
+    ): Response<Unit>
 }
